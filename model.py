@@ -1,11 +1,11 @@
 import tensorflow as tf;
 import numpy as np;
-import cv2;
 import os;
 import sys;
 import pandas as pd;
 import matplotlib.pyplot as plt;
-import matplotlib.image as mpimg;
+from skimage.io import imread;
+from skimage.transform import resize;
 from tqdm import tqdm;
 from dataset import *;
 from cnn import *;
@@ -26,12 +26,12 @@ class Loader(object):
 		for image_file in files:
 			print(image_file);
 			image_file = './test/images/'+image_file;
-			image = cv2.imread(image_file);
+			image = imread(image_file);
 			if(self.rgb):
 				temp = image.swapaxes(0,2);
 				temp = temp[::-1];
 				image = temp.swapaxes(0,2);
-			image = cv2.resize(image,(self.scale_shape[0],self.scale_shape[1]));
+			image = resize(image,(self.scale_shape[0],self.scale_shape[1]));
 			offset = (self.scale_shape-self.crop_shape)/2;
 			offset = offset.astype(np.int32);
 			image = image[offset[0]:offset[0]+self.crop_shape[0], offset[1]:offset[1]+self.crop_shape[1],:];
@@ -115,7 +115,6 @@ class Model(object):
 	
 	def val(self,sess,data,coco):
 		print("Validating the model........");
-		'''
 		results = [];
 		result_dir = self.params.val_result;
 		for i in tqdm(list(range(data.count)),desc='Batch'):
@@ -133,7 +132,7 @@ class Model(object):
 			result = sess.run(self.lstm.results, feed_dict=batch_data);
 			sentence = self.word_table.indices_to_sent(result.squeeze());
 			results.append({'image_id': data.images[i], 'caption': sentence});
-			img = mpimg.imread(img_file);
+			img = imread(img_file);
 			plt.imshow(img);
 			plt.axis('off');
 			plt.title(sentence);
@@ -144,6 +143,7 @@ class Model(object):
 		results= [];
 		for i in range(0,sent.shape[0]):
 			results.append({'image_id':sent['image_id'][i],'caption':sent['caption'][i]});
+		'''
 		result_coco = coco.loadRes2(results);
 		scorer = COCOEvalCap(coco, result_coco);
 		scorer.evaluate();
@@ -169,7 +169,7 @@ class Model(object):
 			result = sess.run(self.lstm.results, feed_dict=batch_data);
 			sentence = self.wordtable.indices_to_sent(result.squeeze());
 			results.append({'image_id': data.images[i], 'caption': sentence});
-			image = mpimg.imread(self.params.test_image+image_file);
+			image = imread(self.params.test_image+image_file);
 			plt.imshow(image);
 			plt.axis('off');
 			plt.title(sentence);
