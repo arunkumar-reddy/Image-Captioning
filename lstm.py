@@ -36,7 +36,7 @@ class LSTM(object):
 		masks = tf.placeholder(tf.float32,[self.batch_size,self.sentence_length]);
 		self.word_weight = np.exp(-np.array(self.wordtable.word_freq));
 		self.position_weight = np.exp(-np.array(list(range(self.sentence_length)))*0.003);
-		idx2vec = np.array([self.wordtable.word2vec[self.wordtable.idx2word[i]] for i in range(num_words)]);   
+		idx2vec = np.array([self.wordtable.word2vec[self.wordtable.idx2word[i]] for i in range(num_words)]);
 		emb_w = weight('emb_w', [num_words, self.word_embed], init_val=idx2vec, group_id=1);
 		dec_w = weight('dec_w', [self.decode_embed, num_words], group_id=1);
 		dec_b = bias('dec_b', [num_words], init_val=0.0);
@@ -87,54 +87,55 @@ class LSTM(object):
 		context_num = self.feature_shape[0];
 		context_dim = self.feature_shape[1];
 		context_flat = tf.reshape(contexts,[-1,context_dim]);
-		for i in range(self.sentence_length):
-			# Attention mechanism
-			context_encode1 = fully_connected(context_flat,context_dim,'att_fc11',group_id=1); 
-			context_encode1 = batch_norm(context_encode1,'att_bn11',train,bn,None);
-			context_encode2 = fully_connected_no_bias(output,context_dim,'att_fc12',group_id=1);
-			context_encode2 = batch_norm(context_encode2,'att_bn12',train,bn,None); 
-			context_encode2 = tf.tile(tf.expand_dims(context_encode2,1),[1,context_num,1]);                 
-			context_encode2 = tf.reshape(context_encode2,[-1, context_dim]);    
-			context_encode = context_encode1 + context_encode2; 
-			context_encode = nonlinear(context_encode, 'relu'); 
-			context_encode = dropout(context_encode,0.5,train);
-			alpha = fully_connected(context_encode, 1,'att_fc2',group_id=1)                 
-			alpha = batch_norm(alpha,'att_bn2',train, bn,None)
-			alpha = tf.reshape(alpha, [-1,context_num]);                                                           
-			alpha = tf.nn.softmax(alpha); 
-			if(i==0):   
-				word_emb = tf.zeros([self.batch_size,self.word_embed]);
-				weighted_context = tf.identity(context_mean);
-			else:
-				word_emb = tf.cond(train,lambda: tf.nn.embedding_lookup(emb_w, captions[:,i-1]),lambda: word_emb);
-				weighted_context = tf.reduce_sum(contexts*tf.expand_dims(alpha,2),1);
-			 
-			if(self.num_lstm == 1):
-				with tf.variable_scope("lstm"):
-					output,state = lstm(tf.concat([weighted_context,word_emb],1),state);
-			else:
-				with tf.variable_scope("lstm1"):
-					output1,state1 = lstm(weighted_context,state1);
-				with tf.variable_scope("lstm2"):
-					output,state2 = lstm(tf.concat([word_emb,output1],1),state2);
-			
-			expanded_output = tf.concat([output,weighted_context,word_emb],1);
-			logits = fully_connected(expanded_output,self.decode_embed,'dec_fc',group_id=1);
-			logits = nonlinear(logits,'tanh');
-			logits = dropout(logits,0.5,train);
-			logits = tf.nn.xw_plus_b(logits, dec_w, dec_b);
-			# Update the loss
-			cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,labels=captions[:,i]);
-			cross_entropy = cross_entropy*masks[:,i];
-			loss0 += tf.reduce_sum(cross_entropy);
-			max_prob_word = tf.argmax(logits,1);
-			results.append(max_prob_word);
-			probabilities = tf.nn.softmax(logits);
-			score = tf.reduce_max(probabilities,1);
-			scores.append(score);
-			# Prepare for the next iteration
-			word_emb = tf.cond(train, lambda: word_emb, lambda: tf.nn.embedding_lookup(emb_w,max_prob_word));         
-			tf.get_variable_scope().reuse_variables();
+		with tf.variable_scope(tf.get_variable_scope()) as scope:
+			for i in range(self.sentence_length):
+				# Attention mechanism
+				context_encode1 = fully_connected(context_flat,context_dim,'att_fc11',group_id=1); 
+				context_encode1 = batch_norm(context_encode1,'att_bn11',train,bn,None);
+				context_encode2 = fully_connected_no_bias(output,context_dim,'att_fc12',group_id=1);
+				context_encode2 = batch_norm(context_encode2,'att_bn12',train,bn,None); 
+				context_encode2 = tf.tile(tf.expand_dims(context_encode2,1),[1,context_num,1]);                 
+				context_encode2 = tf.reshape(context_encode2,[-1, context_dim]);    
+				context_encode = context_encode1 + context_encode2; 
+				context_encode = nonlinear(context_encode, 'relu'); 
+				context_encode = dropout(context_encode,0.5,train);
+				alpha = fully_connected(context_encode, 1,'att_fc2',group_id=1)                 
+				alpha = batch_norm(alpha,'att_bn2',train, bn,None)
+				alpha = tf.reshape(alpha, [-1,context_num]);                                                           
+				alpha = tf.nn.softmax(alpha); 
+				if(i==0):   
+					word_emb = tf.zeros([self.batch_size,self.word_embed]);
+					weighted_context = tf.identity(context_mean);
+				else:
+					word_emb = tf.cond(train,lambda: tf.nn.embedding_lookup(emb_w, captions[:,i-1]),lambda: word_emb);
+					weighted_context = tf.reduce_sum(contexts*tf.expand_dims(alpha,2),1);
+				 
+				if(self.num_lstm == 1):
+					with tf.variable_scope("lstm"):
+						output,state = lstm(tf.concat([weighted_context,word_emb],1),state);
+				else:
+					with tf.variable_scope("lstm1"):
+						output1,state1 = lstm(weighted_context,state1);
+					with tf.variable_scope("lstm2"):
+						output,state2 = lstm(tf.concat([word_emb,output1],1),state2);
+				
+				expanded_output = tf.concat([output,weighted_context,word_emb],1);
+				decoded = fully_connected(expanded_output,self.decode_embed,'dec_fc',group_id=1);
+				decoded = nonlinear(decoded,'tanh');
+				decoded = dropout(decoded,0.5,train);
+				logits = tf.nn.xw_plus_b(decoded,dec_w,dec_b);
+				# Update the loss
+				cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,labels=captions[:,i]);
+				cross_entropy = cross_entropy*masks[:,i];
+				loss0 += tf.reduce_sum(cross_entropy);
+				max_prob_word = tf.argmax(logits,1);
+				results.append(max_prob_word);
+				probabilities = tf.nn.softmax(logits);
+				score = tf.reduce_max(probabilities,1);
+				scores.append(score);
+				# Prepare for the next iteration
+				word_emb = tf.cond(train, lambda: word_emb, lambda: tf.nn.embedding_lookup(emb_w,max_prob_word));         
+				tf.get_variable_scope().reuse_variables();
 		
 		results = tf.stack(results,axis=1);
 		scores = tf.stack(scores,axis=1);

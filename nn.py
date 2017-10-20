@@ -21,7 +21,6 @@ def weight(name,shape,init='he',range=0.1,stddev=0.01,init_val=None,group_id=0):
 		initializer = tf.random_uniform_initializer(-range,range);
 	else:
 		initializer = tf.truncated_normal_initializer(stddev=stddev);
-
 	var = tf.get_variable(name,shape,initializer=initializer);
 	tf.add_to_collection('l2_'+str(group_id),tf.nn.l2_loss(var));
 	return var;

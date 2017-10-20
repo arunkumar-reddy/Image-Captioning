@@ -174,6 +174,7 @@ class Model(object):
 			plt.axis('off');
 			plt.title(sentence);
 			plt.savefig(os.path.join(result_dir, image_name+'_result.jpg'));
+			
 		data.reset();
 		result = pd.DataFrame(results);
 		result.to_csv(result_file)
@@ -181,7 +182,6 @@ class Model(object):
 
 	def load(self,sess):
 		print("Loading model.....");
-		print(self.save_dir);
 		checkpoint = tf.train.get_checkpoint_state(self.save_dir);
 		if checkpoint is None:
 			print("Error: No saved model found. Please train first.");
